@@ -134,6 +134,54 @@ async def async_setup(hass: HomeAssistant, config):
                         brain.devices[dev_id].set_charging_rules, rules
                     )
 
+    async def handle_update_charging_rule(call):
+        """Update a single charging rule identified by its cmt label.
+
+        Reads current rules, finds the rule with the matching cmt,
+        applies the provided field updates, and writes all rules back.
+        If no rule with that cmt exists, a new one is appended.
+        """
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            brain = hass.data[DOMAIN][entry.entry_id]
+            host = call.data.get("powerbrain_host", "")
+            if host == "" or host == brain.host:
+                dev_id = call.data.get("dev_id")
+                cmt = call.data.get("cmt")
+                updates = {k: v for k, v in call.data.items()
+                           if k not in ("dev_id", "cmt", "powerbrain_host")}
+                if dev_id not in brain.devices:
+                    continue
+                rules = await hass.async_add_executor_job(
+                    brain.devices[dev_id].get_charging_rules
+                )
+                found = False
+                new_rules = []
+                for rule in rules:
+                    if rule.get("cmt") == cmt:
+                        new_rules.append({**rule, **updates})
+                        found = True
+                    else:
+                        new_rules.append(rule)
+                if not found:
+                    new_rule = {
+                        "cmt": cmt, "days": 127, "ctype": 0, "atype": 0,
+                        "aexpr": 32000, "udur": 0, "flags": 16, "ena": True, "id": 0,
+                    }
+                    new_rule.update(updates)
+                    new_rules.append(new_rule)
+                    _LOGGER.info(
+                        "update_charging_rule: rule '%s' not found in %s, appended new rule",
+                        cmt, dev_id,
+                    )
+                await hass.async_add_executor_job(
+                    brain.devices[dev_id].set_charging_rules, new_rules
+                )
+                _LOGGER.info(
+                    "update_charging_rule: updated rule '%s' on %s: %s",
+                    cmt, dev_id, updates,
+                )
+
     async def handle_get_charging_rules(call):
         """Log current charging rules for a specific EVSE (debug helper)."""
         entries = hass.config_entries.async_entries(DOMAIN)
@@ -167,6 +215,7 @@ async def async_setup(hass: HomeAssistant, config):
     hass.services.async_register(DOMAIN, "set_variable", handle_set_variable)
     hass.services.async_register(DOMAIN, "set_params", handle_set_params)
     hass.services.async_register(DOMAIN, "set_charging_rules", handle_set_charging_rules)
+    hass.services.async_register(DOMAIN, "update_charging_rule", handle_update_charging_rule)
     hass.services.async_register(DOMAIN, "get_charging_rules", handle_get_charging_rules)
     hass.services.async_register(DOMAIN, "set_phase_mode", handle_set_phase_mode)
 

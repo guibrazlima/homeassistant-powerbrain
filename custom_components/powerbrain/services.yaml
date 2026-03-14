@@ -196,6 +196,56 @@ set_charging_rules:
       required: false
       example: "http://192.168.1.20"
 
+update_charging_rule:
+  name: Update EVSE Charging Rule by Label
+  description: >
+    Find a charging rule by its cmt label and update specific fields only.
+    All other rules remain unchanged. If no rule with that label exists, a new one is appended.
+    This is the recommended way to update a single rule (e.g. change start time/duration)
+    without affecting other rules like solar-pause rules.
+  fields:
+    dev_id:
+      name: Device Id
+      description: EVSE device ID (e.g. E1)
+      required: true
+      example: "E1"
+    cmt:
+      name: Rule Label
+      description: The cmt (comment/label) of the rule to update
+      required: true
+      example: "EV Carregamento Nocturno"
+    time:
+      name: Start Time (minutes)
+      description: New start time in minutes since midnight (e.g. 1320 = 22:00)
+      required: false
+      example: 1320
+    dur:
+      name: Duration (minutes)
+      description: New duration in minutes
+      required: false
+      example: 180
+    aexpr:
+      name: Current (mA)
+      description: Charging current in mA (for atype=0 rules)
+      required: false
+      example: 16000
+    ena:
+      name: Enabled
+      description: Enable or disable the rule
+      required: false
+      example: true
+    days:
+      name: Days
+      description: Weekday bitfield (bit0=Mon...bit6=Sun, 127=all days)
+      required: false
+      example: 127
+    powerbrain_host:
+      name: Powerbrain instance host
+      description: Specify host address if more than one Powerbrain instance is configured (optional)
+      advanced: true
+      required: false
+      example: "http://192.168.1.20"
+
 get_charging_rules:
   name: Get EVSE Charging Rules
   description: >
