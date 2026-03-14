@@ -119,7 +119,7 @@ data:
 ### `powerbrain.set_charging_rules` *(new)*
 Replace the charging rules for a specific EVSE. All existing rules are overwritten.
 
-> ⚠️ The cFos API marks `charging_rules` as **work in progress** and the format may change in future firmware versions.
+Uses the native cFos `get_devices` / `set_device` API (same as the cFos web UI), which correctly persists rules across reboots.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -127,34 +127,58 @@ Replace the charging rules for a specific EVSE. All existing rules are overwritt
 | `rules` | ✅ | Array of rule objects (see below) |
 | `powerbrain_host` | — | Host address if multiple instances |
 
-**Rule object fields:**
+**Rule object fields (cFos native format):**
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `cmt` | str | Comment / label shown in the cFos UI |
 | `days` | int | Weekday bitfield: bit0=Mon … bit6=Sun. `127` = all days |
-| `mode` | int | `0`=absolute current, `1`=relative, `2`=solar current, `3`=relative solar, `4`=solar minus value, `5`=solar surplus |
-| `current` | int | Charging current in mA |
-| `enabled` | bool | `true` = rule active |
+| `ctype` | int | Condition type: `0`=none/time window, `1`=solar surplus, … |
+| `atype` | int | Action type: `0`=set current (mA), `10`=pause |
+| `aexpr` | int | Action value: current in mA for `atype=0`, `1` for `atype=10` |
 | `time` | int | Start time in minutes after midnight (time-based rules) |
-| `dur` | int | Duration in minutes (time-based rules) |
+| `dur` | int | Duration in minutes |
 | `udur` | int | Undercut duration in seconds |
-| `expr` | str | Expression string (expression-based rules) |
-| `input` | str | Input string (input-based rules) |
-| `price_level` | int | Price level (cost-based rules) |
-| `solar` | int | Solar current in mA (solar-based rules) |
+| `flags` | int | `16`=normal, `18`=end-on-finish |
+| `ena` | bool | `true` = rule enabled |
+| `id` | int | Rule id; use `0` for auto-assign |
+| `cexpr` | int | Condition threshold (e.g. solar power in W for `ctype=1`) |
 
-Example — set a time-based rule to charge at 32A every night from 22:15 for 45 minutes:
+Example — time-based rule: charge at 16A every night from 22:00 for 3 hours:
 ```yaml
 service: powerbrain.set_charging_rules
 data:
   dev_id: E1
   rules:
-    - days: 127         # all days
-      mode: 0           # absolute current
-      current: 32000    # 32A in mA
-      enabled: true
-      time: 1335        # 22:15 in minutes after midnight
-      dur: 45           # 45 minutes
+    - cmt: "Overnight cheap rate"
+      days: 127       # all days
+      ctype: 0        # no condition / time window
+      atype: 0        # set current
+      aexpr: 16000    # 16A in mA
+      time: 1320      # 22:00 = 22 × 60 minutes
+      dur: 180        # 3 hours
+      udur: 0
+      flags: 16
+      ena: true
+      id: 0
+```
+
+Example — pause rule: pause for 5 min if solar surplus < 3000W:
+```yaml
+service: powerbrain.set_charging_rules
+data:
+  dev_id: E1
+  rules:
+    - cmt: "Pause low solar"
+      days: 127
+      ctype: 1        # solar surplus condition
+      atype: 10       # pause
+      aexpr: 1
+      cexpr: 3000     # threshold: 3000W
+      udur: 300       # undercut duration 5 min
+      flags: 18
+      ena: true
+      id: 0
 ```
 
 Example — clear all rules (back to Charging Manager default behaviour):
