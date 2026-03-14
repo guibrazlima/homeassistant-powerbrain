@@ -135,16 +135,22 @@ class Powerbrain:
         response.raise_for_status()
 
     def set_phase_mode(self, dev_id: str, phases: int):
-        """Set phase mode for an EVSE via Modbus HTTP API.
+        """Set phase mode for an EVSE.
 
         phases: 1 = single-phase (L1 only), 3 = three-phase.
-        Uses Modbus register 8044 (used_phases bitfield):
-          1 = bit0 = L1 only
-          7 = bits 0+1+2 = L1+L2+L3
+        Uses set_params with used_phases field (1=L1, 3=L1+L2+L3).
         """
-        value = 1 if phases == 1 else 7
-        response = requests.get(
-            f"{self.host}/cnf?cmd=modbus&device={dev_id.lower()}&write=8044&value={value}",
+        payload = {
+            "devices": [
+                {
+                    "dev_id": dev_id,
+                    "used_phases": phases,
+                }
+            ]
+        }
+        response = requests.post(
+            self.host + API_SET_PARAMS,
+            json=payload,
             timeout=5,
             auth=(self.username, self.password),
         )

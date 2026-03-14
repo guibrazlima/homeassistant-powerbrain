@@ -17,10 +17,12 @@ from .powerbrain import Powerbrain
 
 PHASE_OPTIONS = ["1 phase", "3 phases"]
 PHASE_TO_INT = {"1 phase": 1, "3 phases": 3}
-# used_phases bitfield: 1 = L1 only, 7 = L1+L2+L3; 0 = auto-detect
+# used_phases: 1 = L1 only, 3 = L1+L2+L3; 0 = auto
 PHASE_BITS_TO_OPTION = {
-    0: "3 phases",  # auto / 3-phase default
+    0: "3 phases",
     1: "1 phase",
+    2: "3 phases",
+    3: "3 phases",
     7: "3 phases",
 }
 
