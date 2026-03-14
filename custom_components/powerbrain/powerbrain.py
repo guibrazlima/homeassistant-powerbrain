@@ -134,6 +134,22 @@ class Powerbrain:
         )
         response.raise_for_status()
 
+    def set_phase_mode(self, dev_id: str, phases: int):
+        """Set phase mode for an EVSE via Modbus HTTP API.
+
+        phases: 1 = single-phase (L1 only), 3 = three-phase.
+        Uses Modbus register 8044 (used_phases bitfield):
+          1 = bit0 = L1 only
+          7 = bits 0+1+2 = L1+L2+L3
+        """
+        value = 1 if phases == 1 else 7
+        response = requests.get(
+            f"{self.host}/cnf?cmd=modbus&device={dev_id.lower()}&write=8044&value={value}",
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
+
 
 class Device:
     """Device connected via Powerbrain."""
@@ -197,16 +213,46 @@ class Evse(Device):
         """Set charging rules for this EVSE. See Powerbrain.set_charging_rules for rule format."""
         self.brain.set_charging_rules(self.dev_id, rules)
 
+    def set_phase_mode(self, phases: int):
+        """Set phase mode: 1 = single-phase, 3 = three-phase."""
+        self.brain.set_phase_mode(self.dev_id, phases)
+
 
 class Meter(Device):
     """Energy meter device"""
 
     def set_value(self, data):
-        """send values of httpinput meter"""
+        """Send values to an HTTP input meter.
+
+        Supported keys (see cFos HTTP API docs):
+            power_va        (int)   Active power in W or VA
+            import_wh       (int)   Imported energy in Wh
+            export_wh       (int)   Exported energy in Wh
+            voltage         (list)  [v1, v2, v3] in V
+            current         (list)  [c1, c2, c3] in mA
+            is_va           (bool)  True if power is in VA
+            soc             (int)   State of charge 0-100% (storage meters only)
+        """
         response = requests.post(
             f"{self.brain.host}{API_SET_METER}{API_DEV_ID}{self.dev_id}",
             json=data,
             timeout=5,
             auth=(self.brain.username, self.brain.password),
+        )
+        response.raise_for_status()
+
+    def set_phase_mode(self, dev_id: str, phases: int):
+        """Set phase mode for an EVSE via Modbus HTTP API.
+
+        phases: 1 = single-phase (L1 only), 3 = three-phase.
+        Uses Modbus register 8044 (used_phases bitfield):
+          1 = bit0 = L1 only
+          7 = bits 0+1+2 = L1+L2+L3
+        """
+        value = 1 if phases == 1 else 7
+        response = requests.get(
+            f"{self.host}/cnf?cmd=modbus&device=evse&write=8044&value={value}",
+            timeout=5,
+            auth=(self.username, self.password),
         )
         response.raise_for_status()

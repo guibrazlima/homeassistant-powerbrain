@@ -30,7 +30,7 @@ from .powerbrain import Powerbrain
 _LOGGER = logging.getLogger(__name__)
 
 # List the platforms that you want to support.
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH, Platform.SELECT]
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -92,6 +92,8 @@ async def async_setup(hass: HomeAssistant, config):
                     data["export_wh"] = call.data.get("export_energy") * 1000
                 if "is_va" in call.data:
                     data["is_va"] = call.data.get("is_va")
+                if "soc" in call.data:
+                    data["soc"] = call.data.get("soc")
                 hass.async_add_executor_job(brain.devices[dev_id].set_value, data)
 
     async def handle_set_variable(call):
@@ -146,12 +148,27 @@ async def async_setup(hass: HomeAssistant, config):
                     )
                     _LOGGER.info("Charging rules for %s: %s", dev_id, rules)
 
+    async def handle_set_phase_mode(call):
+        """Set phase mode for a specific EVSE (1 or 3 phases)."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            brain = hass.data[DOMAIN][entry.entry_id]
+            host = call.data.get("powerbrain_host", "")
+            if host == "" or host == brain.host:
+                dev_id = call.data.get("dev_id")
+                phases = call.data.get("phases", 3)
+                if dev_id in brain.devices:
+                    hass.async_add_executor_job(
+                        brain.devices[dev_id].set_phase_mode, phases
+                    )
+
     hass.services.async_register(DOMAIN, "enter_rfid", handle_enter_rfid)
     hass.services.async_register(DOMAIN, "set_meter", handle_set_meter)
     hass.services.async_register(DOMAIN, "set_variable", handle_set_variable)
     hass.services.async_register(DOMAIN, "set_params", handle_set_params)
     hass.services.async_register(DOMAIN, "set_charging_rules", handle_set_charging_rules)
     hass.services.async_register(DOMAIN, "get_charging_rules", handle_get_charging_rules)
+    hass.services.async_register(DOMAIN, "set_phase_mode", handle_set_phase_mode)
 
     return True
 

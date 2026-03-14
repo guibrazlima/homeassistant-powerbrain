@@ -88,6 +88,11 @@ set_meter:
       advanced: true
       required: false
       example: "192.168.1.20"
+    soc:
+      name: State of Charge
+      description: Battery state of charge 0-100% (for storage meters only)
+      required: false
+      example: 75
 set_variable:
   name: Set Variable
   description: Sets value of a charging manager variable
@@ -201,6 +206,29 @@ get_charging_rules:
       description: EVSE device ID (e.g. E1)
       required: true
       example: "E1"
+    powerbrain_host:
+      name: Powerbrain instance host
+      description: Specify host address if more than one Powerbrain instance is configured (optional)
+      advanced: true
+      required: false
+      example: "http://192.168.1.20"
+
+set_phase_mode:
+  name: Set Phase Mode
+  description: >
+    Set the charging phase mode for an EVSE (1-phase or 3-phase).
+    Uses Modbus register 8044 to set the used_phases bitfield.
+  fields:
+    dev_id:
+      name: Device Id
+      description: EVSE device ID (e.g. E1)
+      required: true
+      example: "E1"
+    phases:
+      name: Phases
+      description: "Number of phases: 1 = single-phase (L1 only), 3 = three-phase (L1+L2+L3)"
+      required: true
+      example: 1
     powerbrain_host:
       name: Powerbrain instance host
       description: Specify host address if more than one Powerbrain instance is configured (optional)
