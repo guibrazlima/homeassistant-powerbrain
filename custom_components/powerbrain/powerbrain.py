@@ -137,20 +137,15 @@ class Powerbrain:
     def set_phase_mode(self, dev_id: str, phases: int):
         """Set phase mode for an EVSE.
 
-        phases: 1 = single-phase (L1 only), 3 = three-phase.
-        Uses set_params with used_phases field (1=L1, 3=L1+L2+L3).
+        phases: 1 = single-phase (L1 only), 3 = three-phase (L1+L2+L3).
+        Uses Modbus register 8044 via device=meter1 (built-in EVSE Modbus alias).
+        Value: 1 = L1 only, 7 = L1+L2+L3.
+        Note: used_phases in get_dev_info reflects active phases during charging;
+        the register value is the configured target applied on next session start.
         """
-        payload = {
-            "devices": [
-                {
-                    "dev_id": dev_id,
-                    "used_phases": phases,
-                }
-            ]
-        }
-        response = requests.post(
-            self.host + API_SET_PARAMS,
-            json=payload,
+        value = 1 if phases == 1 else 7
+        response = requests.get(
+            f"{self.host}/cnf?cmd=modbus&device=meter1&write=8044&value={value}",
             timeout=5,
             auth=(self.username, self.password),
         )
@@ -247,18 +242,4 @@ class Meter(Device):
         )
         response.raise_for_status()
 
-    def set_phase_mode(self, dev_id: str, phases: int):
-        """Set phase mode for an EVSE via Modbus HTTP API.
 
-        phases: 1 = single-phase (L1 only), 3 = three-phase.
-        Uses Modbus register 8044 (used_phases bitfield):
-          1 = bit0 = L1 only
-          7 = bits 0+1+2 = L1+L2+L3
-        """
-        value = 1 if phases == 1 else 7
-        response = requests.get(
-            f"{self.host}/cnf?cmd=modbus&device=evse&write=8044&value={value}",
-            timeout=5,
-            auth=(self.username, self.password),
-        )
-        response.raise_for_status()
