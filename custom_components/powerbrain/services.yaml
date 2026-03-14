@@ -165,7 +165,7 @@ set_charging_rules:
   description: >
     Set (replace) the charging rules for a specific EVSE.
     Rules are evaluated in order; all existing rules are replaced.
-    Note: the cFos API marks charging_rules as work in progress and may change.
+    Uses the native cFos set_device API with crule_set format.
   fields:
     dev_id:
       name: Device Id
@@ -175,19 +175,20 @@ set_charging_rules:
     rules:
       name: Charging Rules
       description: >
-        Array of rule objects. Each rule may contain:
-        days (int, weekday bitfield: bit0=Mon...bit6=Sun, 127=all),
-        mode (int, 0=absolute current, 1=relative, 2=solar current, 5=solar surplus),
-        current (int, mA),
-        enabled (bool),
-        time (int, minutes after midnight),
+        Array of rule objects in cFos native format. Each rule may contain:
+        cmt (str, comment/label),
+        days (int, weekday bitfield: bit0=Mon...bit6=Sun, 127=all days),
+        ctype (int, condition type: 0=none/time, 1=solar surplus, ...),
+        atype (int, action type: 0=set current in mA, 10=pause),
+        aexpr (int, action value: current in mA for atype=0, 1 for atype=10),
+        time (int, start time in minutes since midnight),
         dur (int, duration in minutes),
         udur (int, undercut duration in seconds),
-        expr (str, expression),
-        price_level (int),
-        solar (int, solar current in mA).
+        flags (int, 16=normal, 18=end-on-finish),
+        ena (bool, rule enabled),
+        id (int, 0=auto-assign).
       required: true
-      example: '[{"days": 127, "mode": 0, "current": 32000, "enabled": true, "time": 1335, "dur": 45}]'
+      example: '[{"cmt": "Overnight", "days": 127, "ctype": 0, "atype": 0, "aexpr": 16000, "time": 1320, "dur": 540, "udur": 0, "flags": 16, "ena": true, "id": 0}]'
     powerbrain_host:
       name: Powerbrain instance host
       description: Specify host address if more than one Powerbrain instance is configured (optional)

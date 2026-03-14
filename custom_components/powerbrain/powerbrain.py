@@ -13,6 +13,8 @@ API_OVERRIDE_FLAGS = "&flags="
 API_DEV_ID = "&dev_id="
 API_VAR_VAL = "&val="
 API_SET_METER = "/cnf?cmd=set_ajax_meter"
+API_GET_DEVICES_CFG = "/cnf?cmd=get_devices"
+API_SET_DEVICE_CFG = "/cnf?cmd=set_device"
 
 
 class Powerbrain:
@@ -92,43 +94,106 @@ class Powerbrain:
         response.raise_for_status()
 
     def get_charging_rules(self, dev_id: str) -> list:
-        """Get current charging rules for a device."""
-        dev_info = requests.get(self.host + API_GET_DEV_INFO, timeout=5).json()
+        """Get current charging rules for a device via get_devices (full config).
+
+        Returns list of rule dicts with cFos native format:
+            ctype   (int)   condition type (0=always/time, 1=solar surplus, ...)
+            atype   (int)   action type (0=set current, 10=pause)
+            aexpr   (int)   action value (current in mA, or 1 for pause)
+            days    (int)   weekday bitfield (bit0=Mon...bit6=Sun, 127=all)
+            time    (int)   start time in minutes since midnight
+            dur     (int)   duration in minutes
+            udur    (int)   undercut duration in seconds
+            flags   (int)   rule flags (16=normal, 18=end-on-finish)
+            ena     (bool)  rule enabled
+            cmt     (str)   comment/name for the rule
+            id      (int)   rule id (0 = auto-assigned)
+        """
+        response = requests.get(
+            self.host + API_GET_DEVICES_CFG,
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
+        devices_cfg = response.json()
         device = next(
-            (d for d in dev_info["devices"] if d["dev_id"] == dev_id), None
+            (d for d in devices_cfg if d["dev_id"] == dev_id), None
         )
         if device is None:
             raise ValueError(f"Device {dev_id} not found")
-        return device.get("charging_rules", [])
+        crule_set = device.get("crule_set") or {}
+        rule_set = crule_set.get("rule_set") or {}
+        return rule_set.get("", [])
 
     def set_charging_rules(self, dev_id: str, rules: list):
-        """Set charging rules for a specific device.
+        """Set charging rules for a specific device via set_device (full config).
 
-        Each rule is a dict with keys:
-            days    (int)   bitfield weekdays: bit0=Mon...bit6=Sun, 127=all days
-            mode    (int)   0=absolute current, 1=relative, 2=solar current,
-                            3=relative solar, 4=solar minus value, 5=solar surplus
-            current (int)   current in mA
-            enabled (bool)  True = rule active
-            time    (int)   minutes after midnight (for time-based rules)
-            dur     (int)   duration in minutes (for time-based rules)
-            udur    (int)   undercut duration in seconds
-            expr    (str)   expression string (for expression-based rules)
-            input   (str)   input string (for input-based rules)
-            price_level (int) price level (for cost-based rules)
-            solar   (int)   solar current in mA (for solar-based rules)
+        Reads current device config via get_devices, replaces crule_set.rule_set['']
+        with the provided rules list, and POSTs to cmd=set_device.
+
+        Each rule is a dict with cFos native format (see get_charging_rules).
+        Common rule templates:
+
+        Time-based charging rule (e.g. 22:00-07:00 at 16A every day):
+            {
+                'cmt': 'Overnight',
+                'days': 127,
+                'ctype': 0,       # 0 = no condition / time window
+                'atype': 0,       # 0 = set to value (current in mA)
+                'aexpr': 16000,   # 16A
+                'time': 1320,     # 22:00 = 22*60
+                'dur': 540,       # 9h = 540 min
+                'udur': 0,
+                'flags': 16,
+                'ena': True,
+                'id': 0,
+            }
+
+        Pause rule (e.g. pause for 5 min if solar < 3000W):
+            {
+                'cmt': 'Pause low solar',
+                'days': 127,
+                'ctype': 1,       # 1 = solar surplus condition
+                'atype': 10,      # 10 = pause
+                'aexpr': 1,
+                'cexpr': 3000,    # threshold in W
+                'udur': 300,
+                'flags': 18,
+                'ena': True,
+                'id': 0,
+            }
         """
-        payload = {
-            "devices": [
-                {
-                    "dev_id": dev_id,
-                    "charging_rules": rules,
-                }
-            ]
-        }
+        import json as _json
+        # Fetch full device config
+        response = requests.get(
+            self.host + API_GET_DEVICES_CFG,
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
+        devices_cfg = response.json()
+        device = next(
+            (d for d in devices_cfg if d["dev_id"] == dev_id), None
+        )
+        if device is None:
+            raise ValueError(f"Device {dev_id} not found")
+
+        # Ensure crule_set structure exists
+        if not device.get("crule_set"):
+            device["crule_set"] = {"rule_set": {"": []}, "selected_id": ""}
+        if "rule_set" not in device["crule_set"]:
+            device["crule_set"]["rule_set"] = {"": []}
+        if "" not in device["crule_set"]["rule_set"]:
+            device["crule_set"]["rule_set"][""] = []
+
+        device["crule_set"]["rule_set"][""] = rules
+
+        # POST updated device config (UI format: '{ "devices": [<dev>]}')
+        payload = '{ "devices": [' + _json.dumps(device) + ']}'
         response = requests.post(
-            self.host + API_SET_PARAMS,
-            json=payload,
+            self.host + API_SET_DEVICE_CFG,
+            data=payload,
+            headers={"Content-Type": "application/json"},
             timeout=5,
             auth=(self.username, self.password),
         )
