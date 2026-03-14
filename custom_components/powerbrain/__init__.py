@@ -104,9 +104,54 @@ async def async_setup(hass: HomeAssistant, config):
                 value = call.data.get("value")
                 hass.async_add_executor_job(brain.set_variable, name, value)
 
+    async def handle_set_params(call):
+        """Set global Charging Manager parameters."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            brain = hass.data[DOMAIN][entry.entry_id]
+            host = call.data.get("powerbrain_host", "")
+            if host == "" or host == brain.host:
+                params = {
+                    k: v
+                    for k, v in call.data.items()
+                    if k != "powerbrain_host"
+                }
+                hass.async_add_executor_job(brain.set_params, params)
+
+    async def handle_set_charging_rules(call):
+        """Set charging rules for a specific EVSE."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            brain = hass.data[DOMAIN][entry.entry_id]
+            host = call.data.get("powerbrain_host", "")
+            if host == "" or host == brain.host:
+                dev_id = call.data.get("dev_id")
+                rules = call.data.get("rules", [])
+                if dev_id in brain.devices:
+                    hass.async_add_executor_job(
+                        brain.devices[dev_id].set_charging_rules, rules
+                    )
+
+    async def handle_get_charging_rules(call):
+        """Log current charging rules for a specific EVSE (debug helper)."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            brain = hass.data[DOMAIN][entry.entry_id]
+            host = call.data.get("powerbrain_host", "")
+            if host == "" or host == brain.host:
+                dev_id = call.data.get("dev_id")
+                if dev_id in brain.devices:
+                    rules = await hass.async_add_executor_job(
+                        brain.devices[dev_id].get_charging_rules
+                    )
+                    _LOGGER.info("Charging rules for %s: %s", dev_id, rules)
+
     hass.services.async_register(DOMAIN, "enter_rfid", handle_enter_rfid)
     hass.services.async_register(DOMAIN, "set_meter", handle_set_meter)
     hass.services.async_register(DOMAIN, "set_variable", handle_set_variable)
+    hass.services.async_register(DOMAIN, "set_params", handle_set_params)
+    hass.services.async_register(DOMAIN, "set_charging_rules", handle_set_charging_rules)
+    hass.services.async_register(DOMAIN, "get_charging_rules", handle_get_charging_rules)
 
     return True
 

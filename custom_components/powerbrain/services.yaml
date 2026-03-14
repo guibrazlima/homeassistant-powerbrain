@@ -108,3 +108,102 @@ set_variable:
       advanced: true
       required: false
       example: "192.168.1.20"
+
+set_params:
+  name: Set Charging Manager Parameters
+  description: >
+    Set global cFos Charging Manager parameters (e.g. min_pause_time,
+    disable_policy, max_total_current, lb_enabled, feed_in_tariff, surplus_expr).
+    Only include the keys you want to change.
+  fields:
+    min_pause_time:
+      name: Minimum Pause Time
+      description: Minimum pause duration between charging sessions (seconds)
+      required: false
+      example: 300
+    disable_policy:
+      name: Disable Policy
+      description: >
+        Policy when device is disabled.
+        0 = disable EVSE, 1 = use minimum charging current, -1 = remove limit (free charging)
+      required: false
+      example: 1
+    max_total_current:
+      name: Max Total Current
+      description: Total installed power limit in mA
+      required: false
+      example: 32000
+    lb_enabled:
+      name: Load Balancing Enabled
+      description: Enable or disable load balancing
+      required: false
+      example: true
+    feed_in_tariff:
+      name: Feed-in Tariff
+      description: Feed-in tariff in currency/kWh (used for solar surplus logic)
+      required: false
+      example: 0.04
+    surplus_expr:
+      name: Surplus Expression
+      description: Expression to calculate surplus power
+      required: false
+      example: ""
+    powerbrain_host:
+      name: Powerbrain instance host
+      description: Specify host address if more than one Powerbrain instance is configured (optional)
+      advanced: true
+      required: false
+      example: "http://192.168.1.20"
+
+set_charging_rules:
+  name: Set EVSE Charging Rules
+  description: >
+    Set (replace) the charging rules for a specific EVSE.
+    Rules are evaluated in order; all existing rules are replaced.
+    Note: the cFos API marks charging_rules as work in progress and may change.
+  fields:
+    dev_id:
+      name: Device Id
+      description: EVSE device ID (e.g. E1)
+      required: true
+      example: "E1"
+    rules:
+      name: Charging Rules
+      description: >
+        Array of rule objects. Each rule may contain:
+        days (int, weekday bitfield: bit0=Mon...bit6=Sun, 127=all),
+        mode (int, 0=absolute current, 1=relative, 2=solar current, 5=solar surplus),
+        current (int, mA),
+        enabled (bool),
+        time (int, minutes after midnight),
+        dur (int, duration in minutes),
+        udur (int, undercut duration in seconds),
+        expr (str, expression),
+        price_level (int),
+        solar (int, solar current in mA).
+      required: true
+      example: '[{"days": 127, "mode": 0, "current": 32000, "enabled": true, "time": 1335, "dur": 45}]'
+    powerbrain_host:
+      name: Powerbrain instance host
+      description: Specify host address if more than one Powerbrain instance is configured (optional)
+      advanced: true
+      required: false
+      example: "http://192.168.1.20"
+
+get_charging_rules:
+  name: Get EVSE Charging Rules
+  description: >
+    Retrieve and log the current charging rules for a specific EVSE.
+    Rules are written to the Home Assistant log at INFO level.
+  fields:
+    dev_id:
+      name: Device Id
+      description: EVSE device ID (e.g. E1)
+      required: true
+      example: "E1"
+    powerbrain_host:
+      name: Powerbrain instance host
+      description: Specify host address if more than one Powerbrain instance is configured (optional)
+      advanced: true
+      required: false
+      example: "http://192.168.1.20"

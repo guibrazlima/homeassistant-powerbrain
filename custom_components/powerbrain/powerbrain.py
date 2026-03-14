@@ -3,6 +3,7 @@ import requests
 
 API_GET_VALIDATE_AUTH = "/ui/en/sim.htm"
 API_GET_PARAMS = "/cnf?cmd=get_params"
+API_SET_PARAMS = "/cnf?cmd=set_params"
 API_GET_DEV_INFO = "/cnf?cmd=get_dev_info"
 API_GET_ENTER_RFID = "/cnf?cmd=enter_rfid&rfid="
 API_GET_SET_VAR = "/cnf?cmd=set_cm_vars&name="
@@ -69,12 +70,69 @@ class Powerbrain:
         requests.get(self.host + API_GET_ENTER_RFID + rfid + dev_id, timeout=5)
 
     def set_variable(self, name, value):
-        """Set value of a charging manager variable"""
+        """Set value of a charging manager variable."""
         requests.get(
             f"{self.host}{API_GET_SET_VAR}{name}{API_VAR_VAL}{value}",
             timeout=5,
             auth=(self.username, self.password),
         )
+
+    def set_params(self, params: dict):
+        """Set global Charging Manager parameters via POST.
+
+        Supported keys include: min_pause_time, disable_policy, max_total_current,
+        reserve_current, lb_enabled, feed_in_tariff, price_model, surplus_expr, etc.
+        """
+        response = requests.post(
+            self.host + API_SET_PARAMS,
+            json=params,
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
+
+    def get_charging_rules(self, dev_id: str) -> list:
+        """Get current charging rules for a device."""
+        dev_info = requests.get(self.host + API_GET_DEV_INFO, timeout=5).json()
+        device = next(
+            (d for d in dev_info["devices"] if d["dev_id"] == dev_id), None
+        )
+        if device is None:
+            raise ValueError(f"Device {dev_id} not found")
+        return device.get("charging_rules", [])
+
+    def set_charging_rules(self, dev_id: str, rules: list):
+        """Set charging rules for a specific device.
+
+        Each rule is a dict with keys:
+            days    (int)   bitfield weekdays: bit0=Mon...bit6=Sun, 127=all days
+            mode    (int)   0=absolute current, 1=relative, 2=solar current,
+                            3=relative solar, 4=solar minus value, 5=solar surplus
+            current (int)   current in mA
+            enabled (bool)  True = rule active
+            time    (int)   minutes after midnight (for time-based rules)
+            dur     (int)   duration in minutes (for time-based rules)
+            udur    (int)   undercut duration in seconds
+            expr    (str)   expression string (for expression-based rules)
+            input   (str)   input string (for input-based rules)
+            price_level (int) price level (for cost-based rules)
+            solar   (int)   solar current in mA (for solar-based rules)
+        """
+        payload = {
+            "devices": [
+                {
+                    "dev_id": dev_id,
+                    "charging_rules": rules,
+                }
+            ]
+        }
+        response = requests.post(
+            self.host + API_SET_PARAMS,
+            json=payload,
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
 
 
 class Device:
@@ -130,6 +188,14 @@ class Evse(Device):
             auth=(self.brain.username, self.brain.password),
         )
         response.raise_for_status()
+
+    def get_charging_rules(self) -> list:
+        """Get current charging rules for this EVSE."""
+        return self.brain.get_charging_rules(self.dev_id)
+
+    def set_charging_rules(self, rules: list):
+        """Set charging rules for this EVSE. See Powerbrain.set_charging_rules for rule format."""
+        self.brain.set_charging_rules(self.dev_id, rules)
 
 
 class Meter(Device):
