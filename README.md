@@ -21,6 +21,7 @@
 - **[NEW]** Additional EVSE sensors (session energy, pause reason, CP/PP state, phases, ...)
 - **[NEW]** Service to set global Charging Manager parameters (`set_params`)
 - **[NEW]** Service to create/replace EVSE charging rules (`set_charging_rules`)
+- **[NEW]** Service to update a single rule by label without affecting others (`update_charging_rule`)
 - **[NEW]** Service to read current EVSE charging rules (`get_charging_rules`)
 
 ## Sensors
@@ -115,6 +116,44 @@ data:
 ```
 
 ---
+
+### `powerbrain.update_charging_rule` *(new)*
+Update a single charging rule identified by its `cmt` label, without affecting other rules.
+
+This is the recommended service for automation use-cases (e.g. EV smart charging) where only the start time or duration needs to change — other rules like solar-pause rules remain untouched.
+
+If no rule with the given `cmt` label exists, a new rule is appended automatically.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `dev_id` | ✅ | EVSE device ID (e.g. `E1`) |
+| `cmt` | ✅ | Label of the rule to update (must match exactly) |
+| `time` | — | New start time in minutes since midnight (e.g. `1320` = 22:00) |
+| `dur` | — | New duration in minutes |
+| `aexpr` | — | New charging current in mA (for `atype=0` rules) |
+| `ena` | — | Enable (`true`) or disable (`false`) the rule |
+| `days` | — | New weekday bitfield (bit0=Mon … bit6=Sun, `127`=all) |
+| `powerbrain_host` | — | Host address if multiple instances (optional) |
+
+Example — update the EV overnight rule to start at 23:00 for 2 hours:
+```yaml
+service: powerbrain.update_charging_rule
+data:
+  dev_id: E1
+  cmt: "EV Carregamento Nocturno"
+  time: 1380   # 23:00 = 23 × 60
+  dur: 120     # 2 hours
+  ena: true
+```
+
+Example — disable the rule without deleting it:
+```yaml
+service: powerbrain.update_charging_rule
+data:
+  dev_id: E1
+  cmt: "EV Carregamento Nocturno"
+  ena: false
+```
 
 ### `powerbrain.set_charging_rules` *(new)*
 Replace the charging rules for a specific EVSE. All existing rules are overwritten.
