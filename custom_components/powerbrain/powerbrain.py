@@ -151,6 +151,19 @@ class Powerbrain:
         )
         response.raise_for_status()
 
+    def get_phase_mode(self) -> int:
+        """Read current phase mode from Modbus register 8044 (device=meter1).
+
+        Returns 1 for single-phase or 7 for three-phase.
+        """
+        response = requests.get(
+            f"{self.host}/cnf?cmd=modbus&device=meter1&read=8044",
+            timeout=5,
+            auth=(self.username, self.password),
+        )
+        response.raise_for_status()
+        return int(response.json())
+
 
 class Device:
     """Device connected via Powerbrain."""
@@ -217,6 +230,10 @@ class Evse(Device):
     def set_phase_mode(self, phases: int):
         """Set phase mode: 1 = single-phase, 3 = three-phase."""
         self.brain.set_phase_mode(self.dev_id, phases)
+
+    def get_phase_mode(self) -> int:
+        """Read current configured phase mode from register 8044. Returns 1 or 7."""
+        return self.brain.get_phase_mode()
 
 
 class Meter(Device):

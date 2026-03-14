@@ -16,13 +16,10 @@ from .powerbrain import Evse
 from .powerbrain import Powerbrain
 
 PHASE_OPTIONS = ["1 phase", "3 phases"]
-PHASE_TO_INT = {"1 phase": 1, "3 phases": 3}
-# used_phases: 1 = L1 only, 3 = L1+L2+L3; 0 = auto
-PHASE_BITS_TO_OPTION = {
-    0: "3 phases",
+PHASE_TO_INT = {"1 phase": 1, "3 phases": 7}
+# Register 8044: 1 = L1 only (1 phase), 7 = L1+L2+L3 (3 phases)
+PHASE_REG_TO_OPTION = {
     1: "1 phase",
-    2: "3 phases",
-    3: "3 phases",
     7: "3 phases",
 }
 
@@ -69,15 +66,31 @@ class EvsePhaseSelectEntity(CoordinatorEntity, SelectEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        bits = self.device.attributes.get("phases", 0)
-        self._attr_current_option = PHASE_BITS_TO_OPTION.get(bits, "3 phases")
+        # Read register 8044 via Modbus — this is the configured phase mode, not the active one
+        # We cache the last known value to avoid blocking calls in the callback
+        if hasattr(self, "_phase_reg_value"):
+            self._attr_current_option = PHASE_REG_TO_OPTION.get(
+                self._phase_reg_value, "3 phases"
+            )
         self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Read initial phase mode from register 8044 when entity is added."""
+        await super().async_added_to_hass()
+        self._phase_reg_value = await self.hass.async_add_executor_job(
+            self.device.get_phase_mode
+        )
+        self._attr_current_option = PHASE_REG_TO_OPTION.get(
+            self._phase_reg_value, "3 phases"
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Change phase mode."""
-        phases = PHASE_TO_INT.get(option, 3)
+        phases = PHASE_TO_INT.get(option, 7)
         await self.hass.async_add_executor_job(self.device.set_phase_mode, phases)
-        await self.coordinator.async_request_refresh()
+        self._phase_reg_value = phases
+        self._attr_current_option = option
+        self.async_write_ha_state()
 
     @property
     def device_info(self) -> DeviceInfo:
