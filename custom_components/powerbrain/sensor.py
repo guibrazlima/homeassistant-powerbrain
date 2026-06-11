@@ -246,7 +246,7 @@ def create_evse_entities(coordinator: PowerbrainUpdateCoordinator, device: Devic
     ret.append(
         PowerbrainDeviceSensor(
             coordinator, device, "ta_en", "Session Energy", "kWh",
-            SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, 0.001,
+            SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, 0.001,
         )
     )
 
