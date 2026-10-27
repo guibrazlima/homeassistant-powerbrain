@@ -69,6 +69,7 @@ class PowerbrainDeviceSensor(CoordinatorEntity, SensorEntity):
         stateclass: str = None,
         state_modifier: Any = None,
         nested_path: list = None,
+        resets: bool = False,
     ) -> None:
         """Initialize sensor attributes."""
         super().__init__(coordinator)
@@ -76,6 +77,7 @@ class PowerbrainDeviceSensor(CoordinatorEntity, SensorEntity):
         self.attribute = attr
         self.state_modifier = state_modifier
         self.nested_path = nested_path  # e.g. ["evse", "cp_state"]
+        self.resets = resets  # counter restarts from 0, e.g. per charging session
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{coordinator.brain.attributes['vsn']['serialno']}_{self.device.dev_id}_{name}"
         self._attr_name = name
@@ -113,6 +115,7 @@ class PowerbrainDeviceSensor(CoordinatorEntity, SensorEntity):
         if (
             self._attr_native_value is None
             or new_value >= self._attr_native_value
+            or self.resets
             or self._attr_state_class != SensorStateClass.TOTAL_INCREASING
         ):
             self._attr_native_value = new_value
@@ -246,7 +249,8 @@ def create_evse_entities(coordinator: PowerbrainUpdateCoordinator, device: Devic
     ret.append(
         PowerbrainDeviceSensor(
             coordinator, device, "ta_en", "Session Energy", "kWh",
-            SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, 0.001,
+            SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, 0.001,
+            resets=True,
         )
     )
 
